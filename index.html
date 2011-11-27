@@ -1,0 +1,216 @@
+<style>
+* {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  overflow:hidden;
+}
+</style>
+<title>Pepper Spray Cop</title>
+<script src="api_client.js"></script>
+<canvas id="meme"></canvas>
+<input type="url" id="url" style="position:absolute; top: 10px; left: 10px; border: 1px solid gray; font-size: x-large; width: 90%" oninput="test(this.value)" placeholder="Paste in the URL for your image">
+<script>
+var face = new Face_ClientAPI('171ef03e9a0094d124b4fdd9aac44d53');
+
+function test(url){
+  var i = new Image();
+  i.onerror = function(){
+    if(document.getElementById('url').value == url){
+      document.getElementById('url').style.borderColor = 'red';
+    }
+  }
+  i.onload = function(){
+    if(document.getElementById('url').value == url){
+      document.getElementById('url').style.display = 'none';
+      loading = true;
+      render(FACE);
+      generate(url);
+    }
+  }
+  i.src = url;
+}
+
+//http://www.colingodsey.com/javascript-gaussian-random-number-generator/
+Math.nrand = function() {
+	var x1, x2, rad, y1;
+
+	do {
+		x1 = 2 * this.random() - 1;
+		x2 = 2 * this.random() - 1;
+		rad = x1 * x1 + x2 * x2;
+	} while(rad >= 1 || rad == 0);
+
+	var c = this.sqrt(-2 * Math.log(rad) / rad);
+
+	return x1 * c;
+};
+var loading = false;
+var dragging = false;
+var xstart, ystart;
+onmousedown = function(e){
+  dragging = +new Date;
+  xstart = e.clientX - cdx;
+  ystart = e.clientY - cdy;
+}
+var PHOTO;
+
+onmouseup = function(e){
+  if(dragging && new Date - dragging < 200){
+    facex = e.clientX;
+    facey = e.clientY;
+    if(PHOTO){
+      pickface(true);
+      render(FACE);
+    }
+  }
+  dragging = false;
+  
+}
+
+onmousemove = function(e){
+  if(dragging){
+    cdx = e.clientX - xstart;
+    cdy = e.clientY - ystart;
+    render(FACE)
+  }
+}
+
+var facex = 0, facey = 0
+var img;
+
+function generate(src){
+
+  face.faces_detect(src, function(url,data){
+    if(data.status == 'success'){
+      var p = data.photos[0];
+      PHOTO = p;
+      pickface()
+      var f = FACE;
+      cdx = f.yaw > 0 ? 100: -100;
+      img = new Image();
+      img.onload = function(){
+        render(FACE);
+      }
+      img.src = p.url;
+    }
+  })
+}
+
+
+function pickface(click){
+  var p = PHOTO;
+  var faces = p.tags.sort(function(b,a){
+    return a.width * a.height - b.width * b.height
+  });
+  var f = faces[0];
+  if(click){
+  for(var i = 0; i < p.tags.length; i++){
+    var x = p.tags[i].center.x/100*p.width
+    var y = p.tags[i].center.y/100*p.height;
+    var iw = p.tags[i].width/100*p.width
+    var ih = p.tags[i].height/100*p.height;
+    var crazy_cult = Math.sqrt((facex-x)*(facex - x) + (facey - y) * (facey - y));
+
+    if(crazy_cult < Math.sqrt(iw*ih)*1.5){
+      f = p.tags[i];
+    }
+  }
+  }
+  if(!f){
+    alert("error: no faces found!");
+    return;
+  }
+  FACE = f;
+
+}
+
+var FACE =  {
+        center: {
+          x: 20,
+          y: 30
+        },
+        height: 10,
+        width: 10
+      };
+var canvas = document.getElementById('meme');
+var x = canvas.getContext('2d');
+var cdy = 100, cdx = 120;
+
+function render(f){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  
+  if(img){
+    var width = PHOTO.width, height = PHOTO.height;
+    x.drawImage(img, 0, 0, width, height);
+  }else{
+    var width = 700, height = 500;
+    if(loading){
+      x.font = "50px sans-serif";
+      x.fillText("Loading", 50, 150);
+    }else{
+      x.font = "50px sans-serif";
+      x.fillText("Enter a URL", 50, 150);
+      x.font = "12px sans-serif";
+      x.fillText("or drag the cop around, and uh.. oww my eyes", 55, 170);
+    }
+  }
+
+  //sort biggest face first
+  var rat = height / 3000 + sizeDelta;
+  
+  var nx = f.center.x/100*width;
+  var ny = (f.center.y)/100*height;
+    
+  x.save();
+  var xt = 2/(1+Math.pow(Math.E, -cdx/10)) - 1 //((f.yaw > 0 && cdx > 0)? 1 : -1) ;
+
+    //console.log(abx, nx, cdx);
+  
+  var cw = 687*rat, ch = 1219*rat;
+  var cx = nx + cdx// + cw/2;
+  var cy = ny-552*rat + cdy //+ ch/2;
+  x.translate(cx, 0);
+  x.scale(xt,1);
+  x.translate(-cx, 0);
+  
+  x.drawImage(cop, (nx) + cdx, ny-552*rat+ cdy, 687*rat, 1219*rat);
+  
+  x.restore();
+  
+
+  var start = nx + cdx;
+  var end = nx;
+  
+  var starth = ny + cdy;
+  var endh = ny;
+  x.fillStyle = 'rgba(255,167,69,0.2)'
+  for(var i = 0; i < 5000; i++){
+    var seed = Math.abs(Math.nrand()/4 + 0.8);
+    var xpos = start + (end - start) * seed + 10 * Math.nrand();
+    var ymult = 1 * seed * f.height /100 * height;
+    var ycenter = starth + (endh - starth) * seed;
+    x.fillRect(xpos - 1, ycenter +  (Math.nrand() * Math.random())/2 * ymult - 1, 2, 2);
+  }
+}
+canvas.width = 700;
+canvas.height = 500;
+
+cop = new Image(); //global! evil!
+cop.onload = function(){
+  render(FACE)
+}
+
+cop.src = 'copspray.png';
+
+onresize = function(){
+  render(FACE);
+}
+var sizeDelta = 0;
+onmousewheel = function(e){
+  sizeDelta += e.wheelDelta/10000;
+  render(FACE);
+}
+//onload = generate;
+</script>
