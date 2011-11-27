@@ -1,34 +1,100 @@
 <style>
-* {
+body,canvas {
   margin: 0;
   border: 0;
   padding: 0;
   overflow:hidden;
 }
+input {
+padding: 5px;
+}
+body {
+background: #EFEEEE;
+}
+#upload {
+color: transparent;
+width: 100px;
+display:none;
+}
 </style>
 <title>Pepper Spray Cop</title>
 <script src="api_client.js"></script>
 <canvas id="meme"></canvas>
-<input type="url" id="url" style="position:absolute; top: 10px; left: 10px; border: 1px solid gray; font-size: x-large; width: 90%" oninput="test(this.value)" placeholder="Paste in the URL for your image">
+<div style="position:absolute;top:15px;right:10px;">
+<input type="file" style="display:none" id="upload" onchange="openfile(this.files[0])">
+<button onclick="searchtext()" id="search" style="display:none">Search</button>
+<button style="display:none" id="button" onclick="location='.'">New</button> 
+<button style="display:none" id="download" onclick="proxify()">Download</button>
+</div>
+<input type="url" id="url" style="position:absolute; top: 10px; left: 10px; border: 1px solid gray; font-size: x-large; width: 90%" oninput="test(this.value)" placeholder="Paste in the URL for your image" autofocus>
 <script>
 var face = new Face_ClientAPI('171ef03e9a0094d124b4fdd9aac44d53');
+function autosearch(url){
+  var xhr = new XMLHttpRequest();
+  xhr.open('get', 'main.php?url='+encodeURIComponent(url), true);
+  xhr.onload = function(e){
+    TEX = xhr.responseText;
+    TEX.replace(/src=["'](.*?\.(png|gif|jpg|jpeg|bmp).*?)["']/g,function(a,b){
+    if(b!=url){
+      test(b, true);
+    }
+    });0
+  }
+  xhr.send(null);
+}
 
-function test(url){
+function searchtext(){
+  autosearch('http://'+document.getElementById('url').value.toLowerCase().replace(/\s/g,'.')+'.jpg.to')
+  document.getElementById('search').style.display = 'none';
+  loading = true;
+  render(FACE);
+  
+}
+
+function openfile(){
+
+}
+function test(url, auto){
+  if(!isUrl(url)){
+    if(url){
+      document.getElementById('search').style.display = '';
+      document.getElementById('url').style.borderColor = 'red';
+    }else{
+    document.getElementById('url').style.borderColor = 'gray';
+    }
+    return 
+  }else{
+      document.getElementById('search').style.display = 'none';
+    document.getElementById('url').style.borderColor = 'gray';
+  }
   var i = new Image();
   i.onerror = function(){
     if(document.getElementById('url').value == url){
       document.getElementById('url').style.borderColor = 'red';
+      if(isUrl(url)){
+        autosearch(url);
+      }
     }
   }
   i.onload = function(){
-    if(document.getElementById('url').value == url){
+    setTimeout(function(){
+    var autopass = (auto && i.width * i.height > Math.pow(180,2))
+    if(autopass || document.getElementById('url').value == url){
       document.getElementById('url').style.display = 'none';
+      document.getElementById('search').style.display = 'none';
       loading = true;
       render(FACE);
       generate(url);
+      location.hash = '#'+url;
     }
+    }, 500);
   }
   i.src = url;
+}
+//http://snippets.dzone.com/posts/show/452
+function isUrl(s) {
+	var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
+	return regexp.test(s);
 }
 
 //http://www.colingodsey.com/javascript-gaussian-random-number-generator/
@@ -49,7 +115,9 @@ var loading = false;
 var dragging = false;
 var xstart, ystart;
 onmousedown = function(e){
-  dragging = +new Date;
+  if(e.button == 0){
+    dragging = +new Date;
+  }
   xstart = e.clientX - cdx;
   ystart = e.clientY - cdy;
 }
@@ -61,11 +129,11 @@ onmouseup = function(e){
     facey = e.clientY;
     if(PHOTO){
       pickface(true);
-      render(FACE);
+
     }
   }
   dragging = false;
-  
+        render(FACE);
 }
 
 onmousemove = function(e){
@@ -80,21 +148,50 @@ var facex = 0, facey = 0
 var img;
 
 function generate(src){
-
+  document.getElementById('button').style.display='';
   face.faces_detect(src, function(url,data){
     if(data.status == 'success'){
       var p = data.photos[0];
       PHOTO = p;
       pickface()
       var f = FACE;
-      cdx = f.yaw > 0 ? 100: -100;
+      cdx = f.center.x/100*p.width > 200 && f.yaw < 0 ? -90: 100;
+      cdy = f.center.y/100*p.height > 300 ? -100: 170;
+      
       img = new Image();
       img.onload = function(){
         render(FACE);
+        
+        document.getElementById('download').style.display = '';
       }
       img.src = p.url;
+      
+    }else{
+      loading = 'error';
+      render(FACE);
     }
   })
+}
+
+function recontext(){
+var q = document.createElement('canvas'),
+  z=document.getElementById('meme'),
+  v=z.parentNode;
+v.insertBefore(q,z);
+v.removeChild(z);
+q.id='meme';
+Canvas = document.getElementById('meme');
+ctx = Canvas.getContext('2d');
+}
+
+function proxify(){      
+  img = new Image();
+  img.onload = function(){
+    recontext();
+    render(FACE, true);
+    location = Canvas.toDataURL('image/jpeg');
+  }
+  img.src = 'main.php?url='+encodeURIComponent(PHOTO.url);
 }
 
 
@@ -118,7 +215,9 @@ function pickface(click){
   }
   }
   if(!f){
-    alert("error: no faces found!");
+    loading = 'error';
+    //ctx.fillText("no faces found!", 100, 100)
+    //alert("error: no faces found!");
     return;
   }
   FACE = f;
@@ -127,28 +226,49 @@ function pickface(click){
 
 var FACE =  {
         center: {
-          x: 20,
+          x: 40,
           y: 30
         },
         height: 10,
         width: 10
       };
-var canvas = document.getElementById('meme');
-var x = canvas.getContext('2d');
-var cdy = 100, cdx = 120;
+var Canvas = document.getElementById('meme');
+var ctx = Canvas.getContext('2d');
+var cdy = 170, cdx = 120;
 
-function render(f){
+function render(f, altctx, superfast){
+
+  var canvas = Canvas, x = ctx;
+  
+  
+  if(altctx){
+     ctx.fillStyle='white';ctx.fillRect(0,0,innerWidth,innerHeight)
+  }else{
+  
   canvas.width = innerWidth;
   canvas.height = innerHeight;
-  
+  }
   if(img){
-    var width = PHOTO.width, height = PHOTO.height;
+    var prat = Math.min(1, Math.min(innerHeight/PHOTO.height, innerWidth/PHOTO.width))
+    var width = PHOTO.width * prat, height = PHOTO.height * prat;
+    if(altctx){
+      canvas.width = width;
+      canvas.height = height;
+    }
     x.drawImage(img, 0, 0, width, height);
+    if(loading == 'error'){
+      x.font = "50px sans-serif";
+      x.fillText("No faces found! ", 50, 150);
+    }
   }else{
-    var width = 700, height = 500;
+    var width = 500, height = 500;
     if(loading){
       x.font = "50px sans-serif";
-      x.fillText("Loading", 50, 150);
+      if(loading == 'error'){
+        x.fillText("Error! ", 50, 150);
+      }else{
+        x.fillText("Loading...", 50, 150);
+      }
     }else{
       x.font = "50px sans-serif";
       x.fillText("Enter a URL", 50, 150);
@@ -157,14 +277,30 @@ function render(f){
     }
   }
 
+
+  x.fillStyle = 'white';
+  x.font = "12px sans-serif";
+  x.fillText("metaception.com/pepper", 21, 21);
+  x.fillText("metaception.com/pepper", 19, 19);
+  x.fillText("metaception.com/pepper", 21, 19);
+  x.fillText("metaception.com/pepper", 19, 21);
+  x.fillStyle = 'black';
+  x.font = "12px sans-serif";
+  x.fillText("metaception.com/pepper", 20, 20);
   //sort biggest face first
-  var rat = height / 3000 + sizeDelta;
-  
+  //var rat = height / 3000 + sizeDelta;
+
+  var fh = f.height/100*height, fw = (f.width/100*width)
+
+  var rat = fw/160 + sizeDelta;
+
   var nx = f.center.x/100*width;
   var ny = (f.center.y)/100*height;
+
+  //x.fillRect(nx - fw/2, ny - fh/2, fw, fh);
     
   x.save();
-  var xt = 2/(1+Math.pow(Math.E, -cdx/10)) - 1 //((f.yaw > 0 && cdx > 0)? 1 : -1) ;
+  var xt = 2/(1+Math.pow(Math.E, -cdx/13.37)) - 1 //((f.yaw > 0 && cdx > 0)? 1 : -1) ;
 
     //console.log(abx, nx, cdx);
   
@@ -185,32 +321,79 @@ function render(f){
   
   var starth = ny + cdy;
   var endh = ny;
-  x.fillStyle = 'rgba(255,167,69,0.2)'
-  for(var i = 0; i < 5000; i++){
-    var seed = Math.abs(Math.nrand()/4 + 0.8);
-    var xpos = start + (end - start) * seed + 10 * Math.nrand();
-    var ymult = 1 * seed * f.height /100 * height;
-    var ycenter = starth + (endh - starth) * seed;
-    x.fillRect(xpos - 1, ycenter +  (Math.nrand() * Math.random())/2 * ymult - 1, 2, 2);
+  var fh = f.height /100 * height;
+  var nfh = Math.max(1,Math.sqrt(fh)/10);
+  var sprayl = Math.sqrt((endh-starth)*(endh-starth) + (end-start)*(end-start));
+  x.fillStyle = 'rgba(255,167,69,0.6)'
+  x.strokeStyle = 'rgba(255,167,69,0.2)';
+  x.lineWidth = 3;
+  x.beginPath();
+  x.moveTo(start,starth);
+  x.lineTo(end,endh);
+  x.stroke();
+  var smult =  sprayl * 10;
+  if(dragging || superfast){
+    smult = 100;
+    nfh = 2;
   }
+  var xstart = +new Date;
+  for(var i = 0; i < smult; i++){
+    var seed = Math.sqrt(Math.random()) //Math.abs(Math.nrand()/3 + 1)/2;
+    var xpos = start + (end - start) * seed + 5 * Math.nrand();
+    var ymult = 0.8 * seed * fh;
+    var ycenter = starth + (endh - starth) * seed;
+    x.fillRect(xpos - nfh, ycenter +  (Math.nrand() * Math.random())/2 * ymult - nfh, nfh*2, nfh*2);
+
+  }
+  return canvas
 }
-canvas.width = 700;
-canvas.height = 500;
+
+Canvas.width = 700;
+Canvas.height = 500;
 
 cop = new Image(); //global! evil!
 cop.onload = function(){
-  render(FACE)
+  render(FACE);
+  var url = unescape(location.hash.substr(1));
+  if(url){
+    test(document.getElementById('url').value = url);
+  }
+  
+  if(typeof FileReader != 'undefined'){
+    document.getElementById('upload').style.display = '';
+  }
 }
 
 cop.src = 'copspray.png';
 
 onresize = function(){
   render(FACE);
+  
+}
+if(window.addEventListener){
+  window.addEventListener('DOMMouseScroll', function(e){
+  
+  //console.log(e.detail)
+  sizeDelta -= e.detail/1000;
+    render(FACE, false, true);
+  })
 }
 var sizeDelta = 0;
 onmousewheel = function(e){
   sizeDelta += e.wheelDelta/10000;
   render(FACE);
 }
-//onload = generate;
+</script>
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-1367972-6']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
 </script>
